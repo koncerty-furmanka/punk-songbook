@@ -246,9 +246,9 @@ footer.credit{
 
 <script>
 // ==== NASTAVENIE ====
-// Sem daj RAW url tvojho gistu so súborom songs.json
-// (v gist.github.com klikni na "Raw" pri súbore a skopíruj tú adresu)
-const GIST_URL = "https://gist.githubusercontent.com/PouZIVATEL/ID_GISTU/raw/songs.json";
+// songs.json je v tom istom repe/priečinku ako index.html, takže stačí relatívna cesta.
+// (ak by si dáta chcel mať v samostatnom gist-e, daj sem jeho "Raw" URL namiesto "songs.json")
+const GIST_URL = "songs.json";
 // =====================
 
 const CACHE_KEY = 'punk-spevnik-data-v1';
