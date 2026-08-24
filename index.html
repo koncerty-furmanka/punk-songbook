@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#171410">
 <title>PUNK SPEVNÍK</title>
-<link rel="manifest" href='data:application/manifest+json,{"name":"Punk Spevn%C3%ADk","short_name":"Spevn%C3%ADk","start_url":".","display":"standalone","background_color":"%23171410","theme_color":"%23171410"}'>
+<link rel="manifest" href="manifest.json">
 <style>
 @font-face{
   font-family:'Troublemarker';
@@ -333,10 +333,13 @@ function render(){
 
 function renderHome(q){
   const query = q !== undefined ? q : '';
+  const allArtists = ARTISTS.map((a,i)=>({a,i})).sort((x,y) =>
+    x.a.name.localeCompare(y.a.name, 'sk', {sensitivity:'base'})
+  );
   const filtered = query
-    ? ARTISTS.map((a,i)=>({a,i})).filter(({a}) => norm(a.name).includes(norm(query)) ||
+    ? allArtists.filter(({a}) => norm(a.name).includes(norm(query)) ||
         a.songs.some(s => norm(s.title).includes(norm(query))))
-    : ARTISTS.map((a,i)=>({a,i}));
+    : allArtists;
 
   let html = `
     <header class="top">
@@ -420,6 +423,13 @@ function bindCardClicks(){
 }
 
 window.addEventListener('hashchange', render);
+
+// PWA / offline support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
 loadData();
 </script>
 </body>
