@@ -247,10 +247,21 @@ main{padding:14px 16px 60px;}
 }
 .songbody .section{
   display:block;
-  color:var(--red);
+  color:var(--ink);
   margin-top:10px;
 }
 .songbody .section:first-child{margin-top:0;}
+.songbody .section-title{
+  display:block;
+  color:var(--red);
+  margin:0;
+}
+.songbody .section-text{
+  display:block;
+  color:var(--ink);
+  margin:0;
+  padding:0;
+}
 .autoscroll{
   position:fixed;
   left:10px;
@@ -401,10 +412,13 @@ function parseSongBody(text){
 function renderBody(text){
   const parsed = parseSongBody(text);
   const bodyHtml = parsed.body.map(line => {
-    const safe = escapeHtml(line);
-    return /^\s*(sloha|refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po refr[ée]ne)(?:\s*\d+)?\s*:/i.test(line)
-      ? `<span class="section">${safe}</span>`
-      : safe;
+    const sectionMatch = line.match(/^\s*(sloha|refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po refr[ée]ne)(?:\s*\d+)?\s*:\s*(.*)$/i);
+    if(sectionMatch){
+      const label = escapeHtml(sectionMatch[0].slice(0, sectionMatch[0].indexOf(':') + 1).trim());
+      const text = escapeHtml(sectionMatch[2].trim());
+      return `<div class="section"><span class="section-title">${label}</span>${text ? `<div class="section-text">${text}</div>` : ''}</div>`;
+    }
+    return escapeHtml(line);
   }).join('\n');
 
   const chordsHtml = parsed.chords.length
@@ -414,8 +428,8 @@ function renderBody(text){
   return {chordsHtml, bodyHtml};
 }
 
-// 0 = stojí, 1 = pomaly, 2 = stredne, 3 = rýchlo.
-const SCROLL_SPEEDS = [0, 8, 16, 28];
+// 0 = stojí, 1 = pomaly, 2 = rýchlejšie.
+const SCROLL_SPEEDS = [0, 8, 18];
 let scrollSpeed = 0;
 let scrollFrame = null;
 let lastScrollTime = 0;
@@ -562,7 +576,6 @@ function renderSong(artist, aIdx, sIdx){
         <button class="speedbtn active" data-speed="0" onclick="setScrollSpeed(0)">0</button>
         <button class="speedbtn" data-speed="1" onclick="setScrollSpeed(1)">1</button>
         <button class="speedbtn" data-speed="2" onclick="setScrollSpeed(2)">2</button>
-        <button class="speedbtn" data-speed="3" onclick="setScrollSpeed(3)">3</button>
       </div>
     </div>
   `;
