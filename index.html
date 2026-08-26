@@ -189,7 +189,7 @@ main{padding:14px 16px 60px;}
 .songhead, .chordsbox, .songbody{ text-transform:uppercase; }
 .songhead .stitle{
   font-family:'Troublemarker', sans-serif;
-  font-size:30px;
+  font-size:26px;
   line-height:1.08;
   transform:rotate(-1deg);
   display:block;
@@ -244,7 +244,7 @@ main{padding:14px 16px 60px;}
   font-family:'Troublemarker', 'Courier New', monospace;
   font-size:10.5px;
   letter-spacing:0.05px;
-  line-height:1.18;
+  line-height:1.34;
   color:var(--ink);
 }
 .songbody .section{
@@ -266,7 +266,7 @@ main{padding:14px 16px 60px;}
   margin:0;
   padding:0;
   white-space:pre-line;
-  line-height:1.18;
+  line-height:1.34;
 }
 .autoscroll{
   position:fixed;
@@ -390,25 +390,47 @@ function escapeHtml(s){
 // Rozdelí text na samostatné akordy a samotný text pesničky.
 function parseSongBody(text){
   const raw = (text || '').replace(/\r/g,'').split('\n');
-  const chordLine = /^\s*(sloha|refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po refr[ée]ne)[^:]{0,18}:\s*(.*)$/i;
+  // Všetky názvy častí, ktoré môžu obsahovať akordy.
+  const chordHead = /^(sloha(?:\s*\d+)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|predrefr[ée]n|medzihra|intro|outro|bridge|po\s+refr[ée]ne|solo|prechod)(?:\s*[:\-])\s*(.*)$/i;
+  const sectionHead = /^(sloha(?:\s*\d+)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|predrefr[ée]n|medzihra|intro|outro|bridge|po\s+refr[ée]ne|solo|prechod)(?:\s*[:\-])\s*(.*)$/i;
+  const standaloneChord = /^[A-Ga-g][#b♭]?(?:m|M|maj|min|dim|sus|add)?[0-9]*(?:[\/\-–—()][A-Ga-g#b♭0-9mM+\s]*)?$/;
   const chords = [];
   const body = [];
+  let inChordBlock = false;
+
+  const isChordish = (value) => {
+    const after = value.trim();
+    if(!after) return false;
+    if(!/[A-Ga-g][#b♭]?/.test(after)) return false;
+    if(/[a-zá-ž]{4,}\s+[a-zá-ž]{4,}/i.test(after)) return false;
+    return /^[A-Ga-g#b♭mM0-9()\-–—\/\s.,+x×]+$/.test(after);
+  };
 
   raw.forEach(line => {
     const trimmed = line.trim();
-    const match = trimmed.match(chordLine);
-    if(match){
-      const after = match[2].trim();
-      // Ak je za názvom časti iba akordová postupnosť, presunieme celý riadok do AKORDY.
-      const chordish = after &&
-        /[A-Ga-g][#b♭]?/.test(after) &&
-        !/[a-zá-ž]{4,}\s+[a-zá-ž]{4,}/i.test(after) &&
-        /^[A-Ga-g#b♭mM0-9()\-–—/\s.,x×]+$/.test(after);
-      if(chordish){
-        chords.push(trimmed);
-        return;
-      }
+    const head = trimmed.match(chordHead);
+
+    if(head && isChordish(head[2])){
+      chords.push(trimmed.toUpperCase());
+      inChordBlock = true;
+      return;
     }
+
+    // Pokračovacie riadky akordov (napr. odsadené G#-2X / C#-E-D#)
+    // patria tiež do AKORDOV, nie do textu pesničky.
+    if(inChordBlock && trimmed && isChordish(trimmed)){
+      chords.push(trimmed.toUpperCase());
+      return;
+    }
+
+    // Prázdny riadok ukončí prípadný blok pokračujúcich akordov.
+    if(!trimmed){
+      inChordBlock = false;
+      body.push(line);
+      return;
+    }
+
+    inChordBlock = false;
     body.push(line.replace(/^\s+/, ''));
   });
 
@@ -417,7 +439,7 @@ function parseSongBody(text){
 
 function renderBody(text){
   const parsed = parseSongBody(text);
-  const sectionRe = /^\s*(sloha|refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po refr[ée]ne)(?:\s*\d+)?\s*:\s*(.*)$/i;
+  const sectionRe = /^\s*(sloha|refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po refr[ée]ne|solo|prechod)(?:\s*\d+)?\s*:\s*(.*)$/i;
   const sections = [];
   let current = null;
   const loose = [];
