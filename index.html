@@ -189,7 +189,7 @@ main{padding:14px 16px 60px;}
 .songhead, .chordsbox, .songbody{ text-transform:uppercase; }
 .songhead .stitle{
   font-family:'Troublemarker', sans-serif;
-  font-size:26px;
+  font-size:22px;
   line-height:1.08;
   transform:rotate(-1deg);
   display:block;
@@ -387,28 +387,106 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
-// Rozdelí text na samostatné akordy a samotný text pesničky.
+// Rozdelí text na samotný text a KOMPLETNÚ časť akordov.
+// Akordy bývajú v songs.json často až úplne na konci skladby a niektoré
+// pokračovacie riadky nemajú vlastný názov (napr. D-C-H-A - 2X).
 function parseSongBody(text){
   const raw = (text || '').replace(/\r/g,'').split('\n');
-  // Všetky názvy častí, ktoré môžu obsahovať akordy.
-  const chordHead = /^(sloha(?:\s*\d+)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|pred\s*refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po\s+refr[ée]ne|solo|prechod)(?:\s*[:\-])\s*(.*)$/i;
-  const sectionHead = /^(sloha(?:\s*\d+)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|pred\s*refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po\s+refr[ée]ne|solo|prechod)(?:\s*[:\-])\s*(.*)$/i;
-  const standaloneChord = /^[A-Ga-g][#b♭]?(?:m|M|maj|min|dim|sus|add)?[0-9]*(?:[\/\-–—()][A-Ga-g#b♭0-9mM+\s]*)?$/;
   const chords = [];
   const body = [];
-  let inChordBlock = false;
 
-  const isChordish = (value) => {
-    const after = value.trim();
+  const chordLabel = /^(sloha(?:\s*\d+)?(?:\s*\/\s*refr[ée]n)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|pred\s*refr[ée]n|predrefr[ée]n|porefr[ée]ne(?:\s*\d+)?|po\s+refr[ée]ne|medzi(?:h|s)hra(?:\s*\d+)?|medzi\s*sloha|intro|outro|bridge|solo|prechod|koniec)(?:\s*[:\-])\s*(.*)$/i;
+  const genericLabel = /^([^:]{1,35}):\s*(.*)$/i;
+
+  function isChordish(value){
+    const after = (value || '').trim();
     if(!after) return false;
-    if(!/[A-Ga-g][#b♭]?/.test(after)) return false;
-    if(/[a-zá-ž]{4,}\s+[a-zá-ž]{4,}/i.test(after)) return false;
-    return /^[A-Ga-g#b♭mM0-9()\-–—\/\s.,+x×]+$/i.test(after);
-  };
 
+    // Pri riadkoch typu "SLOHA/REFRÉN: A#-H" posudzujeme iba pravú
+    // stranu dvojbodky, nie názov sekcie.
+    const labelMatch = after.match(/^([^:]{1,40}):\s*(.*)$/);
+    if(labelMatch) return isChordish(labelMatch[2]);
+
+    // Tabulátory / gitarové zápisy.
+    if(/[A-Ga-g][#b♭]?\s*\/\s*[-0-9|]/.test(after)) return true;
+    if(/[|].*[0-9].*[|]/.test(after)) return true;
+
+    // Odstránime bežné hudobné značky a počítania opakovaní.
+    const clean = after
+      .replace(/[–—]/g,'-')
+      .replace(/[»«]/g,'')
+      .replace(/[?!.]+/g,'')
+      .replace(/\b\d+\s*[xX]\b/g,'')
+      .replace(/\b[xX]\s*\d+\b/g,'')
+      .trim();
+
+    if(!/[A-Ga-g]/.test(clean)) return false;
+
+    // Dlhé normálne slová sú text, nie akordový zápis.
+    if(/[A-Za-zÀ-ž]{4,}\s+[A-Za-zÀ-ž]{4,}/.test(clean)) return false;
+
+    const words = clean.match(/[A-Za-zÀ-ž]+/g) || [];
+    if(!words.length) return false;
+
+    const chordWord = /^[A-GH-a-gh](?:[#b♭]|is|es)?(?:m|mi|maj|min|sus|dim|aug)?\d*$/i;
+    const good = words.filter(w => chordWord.test(w) || /^[xX]\d*$/.test(w)).length;
+
+    return good / words.length >= 0.65;
+  }
+
+  // Najprv nájdeme úplný trailing blok akordov. Toto rieši najmä skladby,
+  // kde po texte nasleduje napr. "D-C-H-A" bez názvu sekcie.
+  let end = raw.length - 1;
+  while(end >= 0 && !raw[end].trim()) end--;
+
+  let trailingStart = -1;
+  if(end >= 0 && isChordish(raw[end])){
+    let i = end;
+    let sawChord = false;
+    while(i >= 0){
+      const t = raw[i].trim();
+      if(!t){
+        // Prázdny riadok môže oddeľovať dve časti akordov. Pokračujeme,
+        // ale iba pokiaľ je ďalší riadok nad ním tiež akordový.
+        if(i-1 >= 0 && isChordish(raw[i-1])){ i--; continue; }
+        break;
+      }
+      if(isChordish(t)){
+        sawChord = true;
+        i--;
+        continue;
+      }
+      break;
+    }
+    if(sawChord) trailingStart = i + 1;
+  }
+
+  // Z trailing bloku odstránime úvodné/koncové prázdne riadky.
+  if(trailingStart >= 0){
+    const block = raw.slice(trailingStart, end + 1)
+      .filter((line, idx, arr) => {
+        if(line.trim()) return true;
+        return idx > 0 && idx < arr.length - 1;
+      });
+    block.forEach(line => chords.push(line.trim().toUpperCase()));
+    raw.splice(trailingStart, end - trailingStart + 1);
+  }
+
+  // Druhý priechod zachytí akordové sekcie, ktoré nie sú úplne na konci.
+  let inChordBlock = false;
   raw.forEach(line => {
     const trimmed = line.trim();
-    const head = trimmed.match(chordHead);
+    if(!trimmed){
+      inChordBlock = false;
+      body.push(line);
+      return;
+    }
+
+    let head = trimmed.match(chordLabel);
+    if(!head){
+      const generic = trimmed.match(genericLabel);
+      if(generic && isChordish(generic[2])) head = generic;
+    }
 
     if(head && isChordish(head[2])){
       chords.push(trimmed.toUpperCase());
@@ -416,37 +494,38 @@ function parseSongBody(text){
       return;
     }
 
-    // Pokračovacie riadky akordov (napr. odsadené G#-2X / C#-E-D#)
-    // patria tiež do AKORDOV, nie do textu pesničky.
-    if(inChordBlock && trimmed && isChordish(trimmed)){
+    if(inChordBlock && isChordish(trimmed)){
       chords.push(trimmed.toUpperCase());
       return;
     }
 
-    // Prázdny riadok ukončí prípadný blok pokračujúcich akordov.
-    if(!trimmed){
-      inChordBlock = false;
-      body.push(line);
-      return;
-    }
-
     inChordBlock = false;
-    body.push(line.replace(/^\s+/, ''));
+    body.push(line.replace(/^\s+/,''));
   });
 
-  return {chords, body};
+  // Odstránime duplicity, ale zachováme pôvodné poradie.
+  const uniqueChords = [];
+  const seen = new Set();
+  chords.forEach(line => {
+    const key = line.trim();
+    if(!key || seen.has(key)) return;
+    seen.add(key);
+    uniqueChords.push(key);
+  });
+
+  return {chords: uniqueChords, body};
 }
 
 function renderBody(text){
   const parsed = parseSongBody(text);
-  const sectionRe = /^\s*(sloha|refr[ée]n|pred\s*refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po refr[ée]ne|solo|prechod)(?:\s*\d+)?\s*:\s*(.*)$/i;
+  const sectionRe = /^\s*(sloha(?:\s*\d+)?(?:\s*\/\s*refr[ée]n)?|refr[ée]n(?:\s*\d+)?|pred\s*refr[ée]n|predrefr[ée]n|porefr[ée]ne(?:\s*\d+)?|po\s+refr[ée]ne|medzihra(?:\s*\d+)?|medzisloha|intro|outro|bridge|solo|prechod|koniec)(?:\s*\d+)?\s*:\s*(.*)$/i;
   const sections = [];
   let current = null;
   const loose = [];
 
   parsed.body.forEach(line => {
     const trimmed = line.trim();
-    if(!trimmed) return; // odstráni prázdne riadky medzi veršami
+    if(!trimmed) return;
 
     const m = trimmed.match(sectionRe);
     if(m){
