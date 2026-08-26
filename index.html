@@ -392,128 +392,171 @@ function escapeHtml(s){
 // pokračovacie riadky nemajú vlastný názov (napr. D-C-H-A - 2X).
 function parseSongBody(text){
   const raw = (text || '').replace(/\r/g,'').split('\n');
-  const chords = [];
-  const body = [];
+  const chords=[];
+  const body=[];
+  const chordIndexes=new Set();
 
-  const chordLabel = /^(sloha(?:\s*\d+)?(?:\s*\/\s*refr[ée]n)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|pred\s*refr[ée]n|predrefr[ée]n|porefr[ée]ne(?:\s*\d+)?|po\s+refr[ée]ne|medzi(?:h|s)hra(?:\s*\d+)?|medzi\s*sloha|intro|outro|bridge|solo|prechod|koniec)(?:\s*[:\-])\s*(.*)$/i;
-  const genericLabel = /^([^:]{1,35}):\s*(.*)$/i;
+  const chordLabel=/^(sloha(?:\s*\d+)?(?:\s*\/\s*refr[ée]n)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|pred\s*refr[ée]n|predrefr[ée]n|porefr[ée]ne(?:\s*\d+)?|po\s+refr[ée]ne|medzi(?:h|s)hra(?:\s*\d+)?|medzi\s*sloha|intro|outro|bridge|solo|prechod|koniec)(?:\s*[:\-])\s*(.*)$/i;
+  const looseLabel=/^(pred\s*ref(?:ré?n)?|predrefr(?:é?n)?|po\s*refr(?:é?n)?|porefr(?:é?n)?|nakoniec|pomal[aá]|rýchl[aá]|alebo\s+akordy)\s*[:\-]?\s*(.*)$/i;
+  const genericLabel=/^([^:]{1,45}):\s*(.*)$/i;
 
   function isChordish(value){
-    const after = (value || '').trim();
+    const after=(value||'').trim();
     if(!after) return false;
 
-    // Pri riadkoch typu "SLOHA/REFRÉN: A#-H" posudzujeme iba pravú
-    // stranu dvojbodky, nie názov sekcie.
-    const labelMatch = after.match(/^([^:]{1,40}):\s*(.*)$/);
+    const loose=after.match(looseLabel);
+    if(loose && loose[2] && isChordish(loose[2])) return true;
+
+    const labelMatch=after.match(/^([^:]{1,45}):\s*(.*)$/);
     if(labelMatch) return isChordish(labelMatch[2]);
 
-    // Tabulátory / gitarové zápisy.
     if(/[A-Ga-g][#b♭]?\s*\/\s*[-0-9|]/.test(after)) return true;
     if(/[|].*[0-9].*[|]/.test(after)) return true;
 
-    // Odstránime bežné hudobné značky a počítania opakovaní.
-    const clean = after
-      .replace(/[–—]/g,'-')
-      .replace(/[»«]/g,'')
-      .replace(/[?!.]+/g,'')
-      .replace(/\b\d+\s*[xX]\b/g,'')
-      .replace(/\b[xX]\s*\d+\b/g,'')
-      .trim();
-
+    const clean=after.replace(/\([^)]*\)/g,'').replace(/[–—]/g,'-').replace(/[»«]/g,'')
+      .replace(/[?!.]+/g,'').replace(/\b\d+\s*[xX]\b/g,'')
+      .replace(/\b[xX]\s*\d+\b/g,'').trim();
     if(!/[A-Ga-g]/.test(clean)) return false;
-
-    // Dlhé normálne slová sú text, nie akordový zápis.
     if(/[A-Za-zÀ-ž]{4,}\s+[A-Za-zÀ-ž]{4,}/.test(clean)) return false;
-
-    const words = clean.match(/[A-Za-zÀ-ž]+/g) || [];
+    const words=clean.match(/[A-Za-zÀ-ž]+/g)||[];
     if(!words.length) return false;
-
-    const chordWord = /^[A-GH-a-gh](?:[#b♭]|is|es)?(?:m|mi|maj|min|sus|dim|aug)?\d*$/i;
-    const good = words.filter(w => chordWord.test(w) || /^[xX]\d*$/.test(w)).length;
-
-    return good / words.length >= 0.65;
+    const chordWord=/^[A-GH-a-gh](?:[#b♭]|is|es)?(?:m|mi|maj|min|sus|dim|aug)?\d*$/i;
+    const good=words.filter(w=>chordWord.test(w)||/^[xX]\d*$/.test(w)).length;
+    return good/words.length>=0.65;
   }
 
-  // Najprv nájdeme úplný trailing blok akordov. Toto rieši najmä skladby,
-  // kde po texte nasleduje napr. "D-C-H-A" bez názvu sekcie.
-  let end = raw.length - 1;
-  while(end >= 0 && !raw[end].trim()) end--;
+  // Strong standalone chord lines are safe to extract even without a label.
+  // This catches chord blocks that appear after the lyrics with no heading.
+  function isStrongChordish(value){
+    const t=(value||'').trim();
+    if(!t) return false;
+    if(/[|].*[0-9].*[|]/.test(t)) return true;
+    if(/^[A-GH](?:[#b♭])?\s*[-.]+\s*\d/.test(t)) return true;
 
-  let trailingStart = -1;
-  if(end >= 0 && isChordish(raw[end])){
-    let i = end;
-    let sawChord = false;
-    while(i >= 0){
-      const t = raw[i].trim();
-      if(!t){
-        // Prázdny riadok môže oddeľovať dve časti akordov. Pokračujeme,
-        // ale iba pokiaľ je ďalší riadok nad ním tiež akordový.
-        if(i-1 >= 0 && isChordish(raw[i-1])){ i--; continue; }
-        break;
-      }
-      if(isChordish(t)){
-        sawChord = true;
-        i--;
-        continue;
-      }
-      break;
+    // Normal chord sequences: D-F-G, G,A#,C,C#, etc. This deliberately
+    // does not accept a plain single "A"/"D" line on its own.
+    const chordSeq=/[A-GH](?:[#b♭])?(?:m|mi|maj|min|sus|dim|aug)?\s*[-/,]\s*[A-GH](?:[#b♭])?/i;
+    if(chordSeq.test(t)){
+      // If the line is clearly a section/chord heading (mostly uppercase or
+      // starts with a known section word), it is safe to move to AKORDY.
+      const letters=(t.match(/[A-Za-zÀ-ž]/g)||[]);
+      const upper=(t.match(/[A-ZÁČĎÉÍĹĽŇÓÔŔŠŤÚÝŽ]/g)||[]).length;
+      const sectionStart=/^(?:SLOHA|REFR[ÉE]N|INTRO|OUTRO|PRED|PO|MEDZI|SOLO|PRECHOD|KONIEC|TAKTO|HOR[ÍI]|HEŠ|JA\s+CHAČJU|ZMIZNITE|NAKONIEC)/i.test(t);
+      if(sectionStart || (letters.length && upper/letters.length>=0.60)) return true;
+      // Pure chord lines such as "D-F-G-F" are always safe.
+      const withoutChords=t.replace(/[A-GH](?:[#b♭])?(?:m|mi|maj|min|sus|dim|aug)?/gi,'').replace(/[\s\-/,xX0-9()–—»«]+/g,'');
+      if(!withoutChords) return true;
     }
-    if(sawChord) trailingStart = i + 1;
+
+    // Repeat-count chord lines such as "D - 3X" when they are a section heading.
+    if(/\b\d+\s*[xX]\b/.test(t) && /[A-GH](?:[#b♭])?/i.test(t)){
+      const sectionStart=/^(?:SLOHA|REFR[ÉE]N|INTRO|OUTRO|PRED|PO|MEDZI|SOLO|PRECHOD|KONIEC|TAKTO|HOR[ÍI])/i.test(t);
+      if(sectionStart) return true;
+    }
+
+    return false;
   }
 
-  // Z trailing bloku odstránime úvodné/koncové prázdne riadky.
-  if(trailingStart >= 0){
-    const block = raw.slice(trailingStart, end + 1)
-      .filter((line, idx, arr) => {
-        if(line.trim()) return true;
-        return idx > 0 && idx < arr.length - 1;
-      });
-    block.forEach(line => chords.push(line.trim().toUpperCase()));
-    raw.splice(trailingStart, end - trailingStart + 1);
-  }
+  function nextNonEmpty(i){for(let j=i+1;j<raw.length;j++) if(raw[j].trim()) return j; return -1;}
+  function prevNonEmpty(i){for(let j=i-1;j>=0;j--) if(raw[j].trim()) return j; return -1;}
 
-  // Druhý priechod zachytí akordové sekcie, ktoré nie sú úplne na konci.
-  let inChordBlock = false;
-  raw.forEach(line => {
-    const trimmed = line.trim();
-    if(!trimmed){
-      inChordBlock = false;
-      body.push(line);
-      return;
-    }
+  // A) Explicitly labelled chord lines/sections.
+  let inChordBlock=false;
+  for(let i=0;i<raw.length;i++){
+    const t=raw[i].trim();
+    if(!t) continue;
 
-    let head = trimmed.match(chordLabel);
-    if(!head){
-      const generic = trimmed.match(genericLabel);
-      if(generic && isChordish(generic[2])) head = generic;
-    }
+    let head=t.match(chordLabel);
+    if(!head){const m=t.match(looseLabel); if(m && m[2] && isChordish(m[2])) head=m;}
+    if(!head){const m=t.match(genericLabel); if(m && isChordish(m[2])) head=m;}
 
     if(head && isChordish(head[2])){
-      chords.push(trimmed.toUpperCase());
-      inChordBlock = true;
-      return;
+      chordIndexes.add(i); inChordBlock=true; continue;
     }
 
-    if(inChordBlock && isChordish(trimmed)){
-      chords.push(trimmed.toUpperCase());
-      return;
+    // A label on its own can introduce the following chord block.
+    if(/^[^:]{1,45}:\s*$/.test(t)){
+      const j=nextNonEmpty(i);
+      if(j>=0 && (isChordish(raw[j]) || isStrongChordish(raw[j]))){
+        chordIndexes.add(i); inChordBlock=true; continue;
+      }
     }
 
-    inChordBlock = false;
-    body.push(line.replace(/^\s+/,''));
-  });
+    if(inChordBlock && isChordish(t)){
+      chordIndexes.add(i); continue;
+    }
+    inChordBlock=false;
+  }
 
-  // Odstránime duplicity, ale zachováme pôvodné poradie.
-  const uniqueChords = [];
-  const seen = new Set();
-  chords.forEach(line => {
-    const key = line.trim();
-    if(!key || seen.has(key)) return;
-    seen.add(key);
-    uniqueChords.push(key);
-  });
+  // B) Extract any clearly chord-like standalone lines. Do not extract a lone
+  // "A", "D", etc. unless it belongs to an already detected chord block.
+  for(let i=0;i<raw.length;i++){
+    if(chordIndexes.has(i)) continue;
+    const t=raw[i].trim();
+    if(!t || !isStrongChordish(t)) continue;
+    chordIndexes.add(i);
+    // Include immediately adjacent continuation chord lines.
+    for(let j=i-1;j>=0;j--){
+      const q=raw[j].trim();
+      if(!q) break;
+      if(isStrongChordish(q)){ chordIndexes.add(j); continue; }
+      break;
+    }
+    for(let j=i+1;j<raw.length;j++){
+      const q=raw[j].trim();
+      if(!q) break;
+      if(isStrongChordish(q)){ chordIndexes.add(j); continue; }
+      break;
+    }
+  }
 
-  return {chords: uniqueChords, body};
+  // C) Catch the special unlabeled final chord block, including labels such as
+  // "PRED REF C-G" and "NAKONIEC C-G". The source order is retained below.
+  let end=raw.length-1;
+  while(end>=0&&!raw[end].trim()) end--;
+  if(end>=0&&isChordish(raw[end])){
+    let i=end;
+    while(i>=0){
+      const t=raw[i].trim();
+      if(!t){
+        const j=prevNonEmpty(i);
+        if(j>=0&&(isChordish(raw[j])||isStrongChordish(raw[j]))){i=j;continue;}
+        break;
+      }
+      if(isChordish(t)||isStrongChordish(t)){chordIndexes.add(i);i--;continue;}
+      break;
+    }
+  }
+
+  // Single-chord continuation lines ("A", "D", "E"...) are ambiguous on
+  // their own, so only extract them when they sit next to other chord lines.
+  for(let i=0;i<raw.length;i++){
+    if(chordIndexes.has(i)) continue;
+    const t=raw[i].trim();
+    if(!/^[A-GH](?:[#b♭]|is|es)?(?:m|mi|maj|min|sus|dim|aug)?$/i.test(t)) continue;
+    let prev=-1,next=-1;
+    for(let j=i-1;j>=0 && i-j<=3;j--) if(raw[j].trim()){prev=j;break;}
+    for(let j=i+1;j<raw.length && j-i<=3;j++) if(raw[j].trim()){next=j;break;}
+    const chordNearby=(idx)=>idx>=0 && (chordIndexes.has(idx) || isStrongChordish(raw[idx]) || isChordish(raw[idx]));
+    if(chordNearby(prev) || chordNearby(next)) chordIndexes.add(i);
+  }
+
+  // Remove only obvious prose/instruction lines that are not themselves
+  // chord data. Keep all genuine continuation lines, including repeated
+  // chords and tabulatures.
+  for(const idx of Array.from(chordIndexes)){
+    const t=raw[idx].trim();
+    if(/\bAKORDMI\s*:?$/i.test(t) || /^ALEBO\s+AKORDY$/i.test(t)) chordIndexes.delete(idx);
+  }
+
+  // D) One source-order pass prevents any chord section from being reordered.
+  for(let i=0;i<raw.length;i++){
+    if(chordIndexes.has(i)){
+      const v=raw[i].trim(); if(v) chords.push(v.toUpperCase());
+    }else body.push(raw[i]);
+  }
+
+  return {chords:chords.filter(Boolean), body};
 }
 
 function renderBody(text){
