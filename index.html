@@ -391,8 +391,8 @@ function escapeHtml(s){
 function parseSongBody(text){
   const raw = (text || '').replace(/\r/g,'').split('\n');
   // Všetky názvy častí, ktoré môžu obsahovať akordy.
-  const chordHead = /^(sloha(?:\s*\d+)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|predrefr[ée]n|medzihra|intro|outro|bridge|po\s+refr[ée]ne|solo|prechod)(?:\s*[:\-])\s*(.*)$/i;
-  const sectionHead = /^(sloha(?:\s*\d+)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|predrefr[ée]n|medzihra|intro|outro|bridge|po\s+refr[ée]ne|solo|prechod)(?:\s*[:\-])\s*(.*)$/i;
+  const chordHead = /^(sloha(?:\s*\d+)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|pred\s*refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po\s+refr[ée]ne|solo|prechod)(?:\s*[:\-])\s*(.*)$/i;
+  const sectionHead = /^(sloha(?:\s*\d+)?|sloha\s+s\s+prechodmi|refr[ée]n(?:\s*\d+)?|pred\s*refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po\s+refr[ée]ne|solo|prechod)(?:\s*[:\-])\s*(.*)$/i;
   const standaloneChord = /^[A-Ga-g][#b♭]?(?:m|M|maj|min|dim|sus|add)?[0-9]*(?:[\/\-–—()][A-Ga-g#b♭0-9mM+\s]*)?$/;
   const chords = [];
   const body = [];
@@ -403,7 +403,7 @@ function parseSongBody(text){
     if(!after) return false;
     if(!/[A-Ga-g][#b♭]?/.test(after)) return false;
     if(/[a-zá-ž]{4,}\s+[a-zá-ž]{4,}/i.test(after)) return false;
-    return /^[A-Ga-g#b♭mM0-9()\-–—\/\s.,+x×]+$/.test(after);
+    return /^[A-Ga-g#b♭mM0-9()\-–—\/\s.,+x×]+$/i.test(after);
   };
 
   raw.forEach(line => {
@@ -439,7 +439,7 @@ function parseSongBody(text){
 
 function renderBody(text){
   const parsed = parseSongBody(text);
-  const sectionRe = /^\s*(sloha|refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po refr[ée]ne|solo|prechod)(?:\s*\d+)?\s*:\s*(.*)$/i;
+  const sectionRe = /^\s*(sloha|refr[ée]n|pred\s*refr[ée]n|predrefr[ée]n|medzihra|intro|outro|bridge|po refr[ée]ne|solo|prechod)(?:\s*\d+)?\s*:\s*(.*)$/i;
   const sections = [];
   let current = null;
   const loose = [];
