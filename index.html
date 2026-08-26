@@ -244,7 +244,7 @@ main{padding:14px 16px 60px;}
   font-family:'Troublemarker', 'Courier New', monospace;
   font-size:10.5px;
   letter-spacing:0.05px;
-  line-height:1.08;
+  line-height:1.18;
   color:var(--ink);
 }
 .songbody .section{
@@ -266,7 +266,7 @@ main{padding:14px 16px 60px;}
   margin:0;
   padding:0;
   white-space:pre-line;
-  line-height:1.08;
+  line-height:1.18;
 }
 .autoscroll{
   position:fixed;
@@ -457,7 +457,7 @@ function renderBody(text){
 }
 
 // 0 = stojí, 1 = pomaly, 2 = rýchlejšie.
-const SCROLL_SPEEDS = [0, 8, 18];
+const SCROLL_SPEEDS = [0, 18, 32];
 let scrollSpeed = 0;
 let scrollFrame = null;
 let lastScrollTime = 0;
