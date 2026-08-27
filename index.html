@@ -217,6 +217,10 @@ main{padding:14px 16px 60px;}
   padding:12px 16px 13px;
   background:#eee7d5;
   border-bottom:2px solid var(--ink);
+  position:sticky;
+  top:var(--header-height, 96px);
+  z-index:15;
+  box-shadow:0 2px 0 rgba(24,20,15,.18);
 }
 .section-label{
   display:block;
@@ -338,6 +342,16 @@ const GIST_URL = "songs.json";
 const CACHE_KEY = 'punk-spevnik-data-v1';
 const app = document.getElementById('app');
 let ARTISTS = [];
+
+// Chord box stays pinned directly below the sticky header while scrolling.
+function updateHeaderHeight(){
+  const header = document.querySelector('header.top');
+  if(header) document.documentElement.style.setProperty('--header-height', header.offsetHeight + 'px');
+}
+window.addEventListener('resize', updateHeaderHeight);
+const headerObserver = new MutationObserver(() => updateHeaderHeight());
+headerObserver.observe(app, {childList:true, subtree:true});
+
 
 function showLoading(){
   app.innerHTML = `
