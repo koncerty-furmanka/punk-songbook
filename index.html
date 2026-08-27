@@ -326,6 +326,30 @@ footer.credit{
   .songhead,.songbody{max-width:640px;margin:0 auto;}
 }
 
+/* ===== RED + WHITE BRAND ===== */
+header.top .brand{
+  color:#FFFFFF;
+  text-shadow:none;
+}
+header.top .brand .brand-red{
+  color:var(--red);
+  text-shadow:2px 2px 0 rgba(255,255,255,.10);
+}
+header.top .brand .brand-white{
+  color:#FFFFFF;
+  text-shadow:2px 2px 0 rgba(214,58,46,.28);
+}
+header.top .brand small{color:#FFFFFF;}
+.artist-brand{
+  color:#FFFFFF !important;
+  text-shadow:2px 2px 0 rgba(214,58,46,.28) !important;
+}
+.card .name{
+  color:var(--red);
+  text-shadow:1px 1px 0 rgba(255,255,255,.12);
+}
+.crumb-label{color:#FFFFFF !important;opacity:1;}
+
 /* ===== DARK MODE (permanent) ===== */
 :root{
   --paper:#171717;
@@ -383,7 +407,7 @@ headerObserver.observe(app, {childList:true, subtree:true});
 function showLoading(){
   app.innerHTML = `
     <header class="top">
-      <span class="brand">PUNK<br>SPEVNÍK<small>texty &amp; akordy</small></span>
+      <span class="brand"><span class="brand-red">PUNK</span><br><span class="brand-white">SPEVNÍK</span><small>texty &amp; akordy</small></span>
     </header>
     <main><div class="empty"><b>Načítavam…</b>Sťahujem pesničky z gistu.</div></main>
   `;
@@ -392,7 +416,7 @@ function showLoading(){
 function showError(){
   app.innerHTML = `
     <header class="top">
-      <span class="brand">PUNK<br>SPEVNÍK<small>texty &amp; akordy</small></span>
+      <span class="brand"><span class="brand-red">PUNK</span><br><span class="brand-white">SPEVNÍK</span><small>texty &amp; akordy</small></span>
     </header>
     <main><div class="empty"><b>Nepodarilo sa načítať dáta</b>Skontroluj pripojenie na internet, alebo či je správne nastavená GIST_URL v kóde appky.</div></main>
   `;
@@ -716,7 +740,7 @@ function renderHome(q){
 
   let html = `
     <header class="top">
-      <span class="brand">PUNK<br>SPEVNÍK<small>texty &amp; akordy</small></span>
+      <span class="brand"><span class="brand-red">PUNK</span><br><span class="brand-white">SPEVNÍK</span><small>texty &amp; akordy</small></span>
     </header>
     <div class="searchwrap">
       <input class="searchbox" id="search" type="text" placeholder="Hľadať kapelu alebo pesničku…" value="${escapeHtml(query)}">
@@ -749,10 +773,9 @@ function renderArtist(artist, idx){
   let html = `
     <header class="top">
       <div class="crumbrow">
-        <button class="backbtn" data-goto="#/"><span>&larr; SPÄŤ</span></button>
         <span class="crumb-label">interpret</span>
       </div>
-      <span class="brand" style="margin-top:12px;">${escapeHtml(artist.name)}</span>
+      <span class="brand artist-brand" style="margin-top:12px;">${escapeHtml(artist.name)}</span>
     </header>
     <main>
       <div class="count-tag">${artist.songs.length} pesnič${artist.songs.length===1?'ka':(artist.songs.length<5?'ky':'iek')}</div>
@@ -773,7 +796,6 @@ function renderSong(artist, aIdx, sIdx){
   let html = `
     <header class="top">
       <div class="crumbrow">
-        <button class="backbtn" data-goto="#/a/${aIdx}"><span>&larr; SPÄŤ</span></button>
         <span class="crumb-label">${escapeHtml(artist.name)}</span>
       </div>
     </header>
